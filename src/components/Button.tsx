@@ -1,5 +1,5 @@
 import type { ForwardedRef } from "react";
-import React, { forwardRef, useState } from "react";
+import React, { forwardRef, useState, useCallback } from "react";
 import Loader from "./loader";
 import clsx from "clsx";
 
@@ -14,18 +14,34 @@ export interface ButtonProps {
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => Promise<void> | void;
 }
 
-const Button = forwardRef(
-  (props: ButtonProps, ref: ForwardedRef<HTMLButtonElement>) => {
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  (props, ref) => {
     const [loading, setLoading] = useState(false);
-    const onClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-      if (props.loader == true) setLoading(true);
 
-      try {
-        void Promise.resolve(props.onClick?.(e)).then();
-      } catch (e) {
-        setLoading(false);
-      }
-    };
+    const handleClick = useCallback(
+      (e: React.MouseEvent<HTMLButtonElement>) => {
+        if (!props.loader || loading) return;
+
+        setLoading(true);
+
+        const promise = props.onClick?.(e);
+
+        if (!promise || !(promise instanceof Promise)) {
+          setLoading(false);
+          return;
+        }
+
+        promise
+          .then(() => {
+            setLoading(false);
+          })
+          .catch((e) => {
+            setLoading(false);
+            console.error(e);
+          });
+      },
+      [loading, props.loader, props.onClick]
+    );
 
     return (
       <button
@@ -41,22 +57,11 @@ const Button = forwardRef(
               }`,
           props.className
         )}
-        onClick={onClick}
+        onClick={handleClick}
       >
         <div className="flex items-center justify-center">
           {loading ? (
             <Loader />
           ) : (
             <>
-              {props.icon ? <div className="mr-2">{props.icon}</div> : null}
-              {props.children}
-            </>
-          )}
-        </div>
-      </button>
-    );
-  }
-);
-
-Button.displayName = "Button";
-export default Button;
+              {props.icon ? <div className
