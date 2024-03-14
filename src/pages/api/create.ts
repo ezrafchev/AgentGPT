@@ -8,13 +8,18 @@ export const config = {
 };
 
 const handler = async (request: NextRequest) => {
-  try {
-    const { modelSettings, goal, tasks, lastTask, result, completedTasks } =
-      (await request.json()) as RequestBody;
+  if (request.method !== "POST") {
+    return new NextResponse("Method not allowed", { status: 405 });
+  }
 
-    if (tasks === undefined || lastTask === undefined || result === undefined) {
-      return;
+  try {
+    const jsonBody = await request.json();
+    if (!jsonBody || !isValidRequestBody(jsonBody)) {
+      return new NextResponse("Invalid request body", { status: 400 });
     }
+
+    const { modelSettings, goal, tasks, lastTask, result, completedTasks } =
+      jsonBody as RequestBody;
 
     const newTasks = await createAgent(
       modelSettings,
@@ -26,9 +31,16 @@ const handler = async (request: NextRequest) => {
     );
 
     return NextResponse.json({ newTasks });
-  } catch (e) {}
+  } catch (error) {
+    console.error("Error handling request:", error);
+    return new NextResponse("Internal server error", { status: 500 });
+  }
+};
 
-  return NextResponse.error();
+const isValidRequestBody = (body: unknown): body is RequestBody => {
+  if (typeof body !== "object" || body === null) return false;
+  const keys = ["modelSettings", "goal", "tasks", "lastTask", "result", "completedTasks"] as const;
+  return keys.every(key => key in body);
 };
 
 export default handler;
