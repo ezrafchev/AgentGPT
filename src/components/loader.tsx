@@ -1,3 +1,4 @@
+import React from "react";
 import { Ring } from "@uiball/loaders";
 
 interface LoaderProps {
@@ -5,6 +6,7 @@ interface LoaderProps {
   size?: number;
   speed?: number;
   lineWeight?: number;
+  color?: string;
 }
 
 const Loader: React.FC<LoaderProps> = ({
@@ -12,10 +14,11 @@ const Loader: React.FC<LoaderProps> = ({
   size = 16,
   speed = 2,
   lineWeight = 7,
+  color = "white",
 }) => {
   return (
-    <div className={className}>
-      <Ring size={size} speed={speed} color="white" lineWeight={lineWeight} />
+    <div className={className} aria-label="Loading">
+      <Ring key={size + speed + lineWeight + color} size={size} speed={speed} color={color} lineWeight={lineWeight} />
     </div>
   );
 };
