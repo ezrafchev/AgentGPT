@@ -1,22 +1,31 @@
-import { z } from "zod";
-import { StructuredOutputParser } from "langchain/output_parsers";
+import { ZodTypeAny, StructuredOutputParser } from "langchain/output_parsers";
 
-/*
- * Parsers are used by LangChain to easily prompt for a given format and also parse outputs.
- * https://js.langchain.com/docs/modules/prompts/output_parsers/
- */
+// Define custom enums for action type and task status
+export enum ActionType {
+  Question = "Question",
+  Respond = "Respond",
+}
 
-export const respondAction = "Respond";
-export const actionParser = StructuredOutputParser.fromZodSchema(
-  z.object({
-    // Enum type currently not supported
-    action: z
-      .string()
-      .describe(`The action to take, either 'Question' or '${respondAction}'`),
-    arg: z.string().describe("The argument to the action"),
-  })
-);
+export enum TaskStatus {
+  InProgress = "InProgress",
+  Completed = "Completed",
+}
 
-export const tasksParser = StructuredOutputParser.fromZodSchema(
-  z.array(z.string()).describe("A list of tasks to complete")
-);
+// Create Zod schemas for action and task objects
+const actionSchema: ZodTypeAny = z.object({
+  action: z.nativeEnum(ActionType).describe(
+    `The action to take, either '${ActionType.Question}' or '${ActionType.Respond}'`
+  ),
+  arg: z.string().describe("The argument to the action"),
+});
+
+const taskSchema: ZodTypeAny = z.object({
+  task: z.string().describe("The task to be completed"),
+  status: z.nativeEnum(TaskStatus).describe("The status of the task"),
+});
+
+const tasksSchema: ZodTypeAny = z.array(taskSchema).describe("A list of tasks to complete");
+
+// Initialize the parsers
+export const actionParser = StructuredOutputParser.fromZodSchema(actionSchema);
+export const tasksParser = StructuredOutputParser.fromZodSchema(tasksSchema);
