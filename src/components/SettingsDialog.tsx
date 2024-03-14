@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Button from "./Button";
 import {
   FaKey,
@@ -9,13 +9,13 @@ import {
 } from "react-icons/fa";
 import Dialog from "./Dialog";
 import Input from "./Input";
+import Accordion from "./Accordion";
 import {
   GPT_MODEL_NAMES,
   GPT_4,
   DEFAULT_MAX_LOOPS,
   DEFAULT_MAX_LOOPS_FREE,
 } from "../utils/constants";
-import Accordion from "./Accordion";
 import type { reactModelStates } from "./types";
 
 export default function SettingsDialog({
@@ -38,25 +38,25 @@ export default function SettingsDialog({
     setCustomMaxLoops,
   } = reactModelStates;
 
-  const [key, setKey] = React.useState<string>(customApiKey);
+  const [apiKey, setApiKey] = useState<string>(customApiKey);
 
   const handleClose = () => {
-    setKey(customApiKey);
+    setApiKey(customApiKey);
     close();
   };
 
   const handleSave = () => {
-    setCustomApiKey(key);
+    setCustomApiKey(apiKey);
     close();
   };
 
-  React.useEffect(() => {
-    setCustomMaxLoops(!key ? DEFAULT_MAX_LOOPS_FREE : DEFAULT_MAX_LOOPS);
+  useEffect(() => {
+    setCustomMaxLoops(!apiKey ? DEFAULT_MAX_LOOPS_FREE : DEFAULT_MAX_LOOPS);
 
     return () => {
       setCustomMaxLoops(DEFAULT_MAX_LOOPS_FREE);
     };
-  }, [key, setCustomMaxLoops]);
+  }, [apiKey, setCustomMaxLoops]);
 
   const advancedSettings = (
     <>
@@ -89,7 +89,7 @@ export default function SettingsDialog({
           </>
         }
         value={customMaxLoops}
-        disabled={!key}
+        disabled={!apiKey}
         onChange={(e) => setCustomMaxLoops(parseFloat(e.target.value))}
         type="range"
         toolTipProperties={{
@@ -164,18 +164,14 @@ export default function SettingsDialog({
             </>
           }
           placeholder={"sk-..."}
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
         />
         <br className="md:inline" />
-        <Accordion
-          child={advancedSettings}
-          name="Advanced Settings"
-        ></Accordion>
+        <Accordion child={advancedSettings} name="Advanced Settings" />
         <br />
         <strong className="mt-10">
-          NOTE: To get a key, sign up for an OpenAI account and visit the
-          following{" "}
+          NOTE: To get a key, sign up for an OpenAI account and visit the{" "}
           <a
             href="https://platform.openai.com/account/api-keys"
             className="text-blue-500"
