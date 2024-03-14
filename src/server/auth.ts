@@ -11,23 +11,19 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "./db";
 import { serverEnv } from "../env/schema.mjs";
 
-/**
- * Module augmentation for `next-auth` types
- * Allows us to add custom properties to the `session` object
- * and keep type safety
- * @see https://next-auth.js.org/getting-started/typescript#module-augmentation
- **/
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
-    } & DefaultSession["user"] &
-      User;
+      role?: "ADMIN";
+      subscriptionId?: string;
+    };
   }
 
   interface User {
+    id: string;
     role?: "ADMIN";
-    subscriptionId: string | undefined;
+    subscriptionId?: string;
   }
 }
 
@@ -49,11 +45,6 @@ const providers = [
   }),
 ];
 
-/**
- * Options for NextAuth.js used to configure
- * adapters, providers, callbacks, etc.
- * @see https://next-auth.js.org/configuration/options
- **/
 export const authOptions: NextAuthOptions = {
   callbacks: {
     session({ session, user }) {
@@ -73,11 +64,6 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
-/**
- * Wrapper for getServerSession so that you don't need
- * to import the authOptions in every file.
- * @see https://next-auth.js.org/configuration/nextjs
- **/
 export const getServerAuthSession = (ctx: {
   req: GetServerSidePropsContext["req"];
   res: GetServerSidePropsContext["res"];
