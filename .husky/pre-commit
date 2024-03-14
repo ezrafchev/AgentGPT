@@ -1,4 +1,13 @@
 #!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
 
-npx lint-staged
+# Absolute path to this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Load husky functions
+. "${SCRIPT_DIR}/_/husky.sh"
+
+# Run lint-staged
+npx lint-staged || {
+  echo "lint-staged failed"
+  exit 1
+}
