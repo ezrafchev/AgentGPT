@@ -11,6 +11,43 @@ interface ComboboxProps {
   onChange: (value: string) => void;
 }
 
+interface ComboboxInputProps {
+  className: string;
+  disabled: boolean;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
+interface ComboboxOptionProps {
+  className: string;
+  value: string;
+}
+
+const ComboboxInput = ({ className, disabled, onChange }: ComboboxInputProps) => {
+  return (
+    <ComboboxPrimitive.Input
+      className={className}
+      disabled={disabled}
+      onChange={onChange}
+      data-testid="combobox-input"
+      aria-label="Select an option"
+    />
+  );
+};
+
+const ComboboxOption = ({ className, value }: ComboboxOptionProps) => {
+  return (
+    <ComboboxPrimitive.Option
+      className={className}
+      value={value}
+      data-testid={`combobox-option-${value}`}
+      role="option"
+      tabIndex={-1}
+    >
+      {value}
+    </ComboboxPrimitive.Option>
+  );
+};
+
 const Combobox = ({
   options,
   value,
@@ -19,6 +56,7 @@ const Combobox = ({
   onChange,
 }: ComboboxProps) => {
   const [query, setQuery] = useState("");
+
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (
       event.target instanceof HTMLInputElement &&
@@ -26,6 +64,25 @@ const Combobox = ({
     ) {
       setQuery(event.target.value);
     }
+  };
+
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      onChange(query);
+    }
+  };
+
+  const handleInputBlur = () => {
+    setQuery("");
+  };
+
+  const handleInputFocus = () => {
+    setQuery(value);
+  };
+
+  const handleButtonClick = () => {
+    setQuery("");
   };
 
   const filteredOptions =
@@ -36,33 +93,4 @@ const Combobox = ({
         });
 
   return (
-    <ComboboxPrimitive value={value} onChange={onChange} disabled={disabled}>
-      <div className="relative w-full">
-        <ComboboxPrimitive.Input
-          onChange={handleInputChange}
-          className={clsx(
-            "border:black delay-50 sm: flex w-full items-center justify-between rounded-xl border-[2px] border-white/10 bg-transparent px-2 py-2 text-sm tracking-wider outline-0 transition-all hover:border-[#1E88E5]/40 focus:border-[#1E88E5] sm:py-3 md:text-lg",
-            disabled && " cursor-not-allowed hover:border-white/10",
-            left && "md:rounded-l-none"
-          )}
-        />
-        <ComboboxPrimitive.Button className="absolute inset-y-0 right-0 flex items-center pr-4">
-          <FaChevronDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
-        </ComboboxPrimitive.Button>
-        <ComboboxPrimitive.Options className="absolute right-0 top-full z-20 mt-1 max-h-48 w-full overflow-auto rounded-xl border-[2px] border-white/10 bg-[#3a3a3a] tracking-wider shadow-xl outline-0 transition-all ">
-          {filteredOptions.map((opt) => (
-            <ComboboxPrimitive.Option
-              key={opt}
-              value={opt}
-              className="cursor-pointer px-2 py-2 font-mono text-sm text-white/75 hover:bg-blue-500 sm:py-3 md:text-lg"
-            >
-              {opt}
-            </ComboboxPrimitive.Option>
-          ))}
-        </ComboboxPrimitive.Options>
-      </div>
-    </ComboboxPrimitive>
-  );
-};
-
-export default Combobox;
+    <ComboboxPrimitive value={value
