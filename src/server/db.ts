@@ -1,14 +1,21 @@
 import { PrismaClient } from "@prisma/client";
+import * as dotenv from "dotenv";
 
-import { env } from "../env/server.mjs";
+dotenv.config();
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-export const prisma =
+const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
     log:
-      env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+      process.env.NODE_ENV === "development"
+        ? ["query", "error", "warn"]
+        : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}
+
+export default prisma;
