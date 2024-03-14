@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import clsx from "clsx";
+import { useRouter } from "next/router";
 import {
   FaAccessibleIcon,
   FaBars,
@@ -14,13 +16,10 @@ import {
   FaUser,
 } from "react-icons/fa";
 import { BiPlus } from "react-icons/bi";
-import clsx from "clsx";
 import { useAuth } from "../hooks/useAuth";
-import type { Session } from "next-auth";
 import { env } from "../env/client.mjs";
 import { api } from "../utils/api";
-import { useRouter } from "next/router";
-import { signIn } from "next-auth/react";
+import { signIn as nextAuthSignIn } from "next-auth/react";
 
 const Drawer = ({
   showHelp,
@@ -30,21 +29,17 @@ const Drawer = ({
   showSettings: () => void;
 }) => {
   const [showDrawer, setShowDrawer] = useState(false);
-  const { session, signIn, signOut, status } = useAuth();
+  const { session, signIn: authSignIn, signOut: authSignOut } = useAuth();
   const router = useRouter();
 
-  const sub = api.account.subscribe.useMutation({
+  const subMutation = api.account.subscribe.useMutation({
     onSuccess: async (url) => {
       if (!url) return;
       await router.push(url);
     },
   });
 
-  const query = api.agent.getAll.useQuery(undefined, {
-    enabled: session?.user.role === "ADMIN",
-  });
-
-  const manage = api.account.manage.useMutation({
+  const manageMutation = api.account.manage.useMutation({
     onSuccess: async (url) => {
       if (!url) return;
       await router.push(url);
@@ -55,7 +50,17 @@ const Drawer = ({
     setShowDrawer((prevState) => !prevState);
   };
 
-  const userAgents = query.data ?? [];
+  const userAgents = api.agent.getAll.useQuery(undefined, {
+    enabled: session?.user.role === "ADMIN",
+  }).data ?? [];
+
+  const signIn = () => {
+    authSignIn();
+  };
+
+  const signOut = () => {
+    authSignOut();
+  };
 
   return (
     <>
@@ -98,7 +103,7 @@ const Drawer = ({
                 icon={<FaRobot />}
                 text={agent.name}
                 className={""}
-                onClick={() => void router.push(`/agent/${agent.id}`)}
+                onClick={() => router.push(`/agent/${agent.id}`)}
               />
             ))}
 
@@ -121,13 +126,18 @@ const Drawer = ({
 
           {env.NEXT_PUBLIC_FF_SUB_ENABLED && (
             <ProItem
-              sub={sub.mutate}
-              manage={manage.mutate}
+              subMutation={subMutation.mutate}
+              manageMutation={manageMutation.mutate}
               session={session}
             />
           )}
           {env.NEXT_PUBLIC_FF_AUTH_ENABLED && (
-            <AuthItem session={session} signIn={signIn} signOut={signOut} />
+            <AuthItem
+              session={session}
+              signIn={signIn}
+              signOut={signOut}
+              nextAuthSignIn={nextAuthSignIn}
+            />
           )}
           <DrawerItem
             icon={<FaQuestionCircle />}
@@ -152,114 +162,3 @@ const Drawer = ({
               small
             />
             <DrawerItem
-              icon={<FaGithub size={30} />}
-              text="GitHub"
-              href="https://github.com/reworkd/AgentGPT"
-              target="_blank"
-              small
-            />
-          </div>
-        </div>
-      </div>
-    </>
-  );
-};
-
-interface DrawerItemProps
-  extends Pick<
-    React.AnchorHTMLAttributes<HTMLAnchorElement>,
-    "href" | "target"
-  > {
-  icon: React.ReactNode;
-  text: string;
-  border?: boolean;
-  onClick?: () => any;
-  className?: string;
-  small?: boolean;
-}
-
-const DrawerItem = (props: DrawerItemProps) => {
-  const { icon, text, border, href, target, onClick, className } = props;
-
-  if (href) {
-    return (
-      <a
-        className={clsx(
-          "flex cursor-pointer flex-row items-center rounded-md rounded-md p-2 hover:bg-white/5",
-          border && "border-[1px] border-white/20",
-          `${className || ""}`
-        )}
-        href={href}
-        target={target ?? "_blank"}
-      >
-        {icon}
-        {!props.small && <span className="text-md ml-4">{text}</span>}
-      </a>
-    );
-  } else {
-    return (
-      <button
-        type="button"
-        className={clsx(
-          "flex cursor-pointer flex-row items-center rounded-md rounded-md p-2 hover:bg-white/5",
-          border && "border-[1px] border-white/20",
-          `${className || ""}`
-        )}
-        onClick={onClick}
-      >
-        {icon}
-        <span className="text-md ml-4">{text}</span>
-      </button>
-    );
-  }
-};
-
-const AuthItem: React.FC<{
-  session: Session | null;
-  signIn: () => void;
-  signOut: () => void;
-}> = ({ signIn, signOut, session }) => {
-  const icon = session?.user ? <FaSignInAlt /> : <FaSignOutAlt />;
-  const text = session?.user ? "Sign Out" : "Sign In";
-  const onClick = session?.user ? signOut : signIn;
-
-  return <DrawerItem icon={icon} text={text} onClick={onClick} />;
-};
-
-const ProItem: React.FC<{
-  session: Session | null;
-  sub: () => any;
-  manage: () => any;
-}> = ({ sub, manage, session }) => {
-  const text = session?.user?.subscriptionId ? "Account" : "Go Pro";
-  let icon = session?.user ? <FaUser /> : <FaRocket />;
-  if (session?.user?.image) {
-    icon = (
-      <img
-        src={session?.user.image}
-        className="h-6 w-6 rounded-full"
-        alt="User Image"
-      />
-    );
-  }
-
-  return (
-    <DrawerItem
-      icon={icon}
-      text={text}
-      onClick={async () => {
-        if (!session?.user) {
-          void (await signIn());
-        }
-
-        if (session?.user.subscriptionId) {
-          void manage();
-        } else {
-          void sub();
-        }
-      }}
-    />
-  );
-};
-
-export default Drawer;
