@@ -1,1 +1,9 @@
-github: reworkd-admin
+def add_numbers(num1, num2):
+    """
+    This function takes two numbers as input and returns their sum.
+
+    :param num1: The first number.
+    :param num2: The second number.
+    :return: The sum of the two numbers.
+    """
+    return num1 + num2
