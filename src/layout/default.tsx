@@ -13,7 +13,10 @@ const DefaultLayout = (props: LayoutProps) => {
   const description =
     "Assemble, configure, and deploy autonomous AI Agents in your browser.";
   return (
-    <div className="flex flex-col bg-gradient-to-b from-[#2B2B2B] to-[#1F1F1F]">
+    <div
+      className={clsx("flex flex-col min-h-screen bg-gradient-to-b from-[#2B2B2B] to-[#1F1F1F]", props.className)}
+      aria-label="AgentGPT: Autonomous AI in your browser"
+    >
       <Head>
         <title>AgentGPT</title>
         <meta name="description" content={description} />
@@ -27,10 +30,7 @@ const DefaultLayout = (props: LayoutProps) => {
         />
         <meta name="twitter:image:width" content="1280" />
         <meta name="twitter:image:height" content="640" />
-        <meta
-          property="og:title"
-          content="AgentGPT: Autonomous AI in your browser 🤖"
-        />
+        <meta property="og:title" content="AgentGPT: Autonomous AI in your browser 🤖" />
         <meta
           property="og:description"
           content="Assemble, configure, and deploy autonomous AI Agents in your browser."
@@ -54,11 +54,5 @@ const DefaultLayout = (props: LayoutProps) => {
           data-domain="agentgpt.reworkd.ai"
         />
       </Head>
-      <DottedGridBackground className={clsx("min-h-screen", props.className)}>
-        {props.children}
-      </DottedGridBackground>
-    </div>
-  );
-};
-
-export default DefaultLayout;
+      {React.Children.map(props.children, (child, index) => (
+        <DottedGridBackground key={index} className={props.
