@@ -1,9 +1,10 @@
 // @ts-check
 import { clientEnv, clientSchema } from "./schema.mjs";
+import type { ClientEnvType } from "./types.mjs";
 
 const _clientEnv = clientSchema.safeParse(clientEnv);
 
-export const formatErrors = (
+const formatErrors = (
   /** @type {import('zod').ZodFormattedError<Map<string,string>,string>} */
   errors,
 ) =>
@@ -19,17 +20,26 @@ if (!_clientEnv.success) {
     "❌ Invalid environment variables:\n",
     ...formatErrors(_clientEnv.error.format()),
   );
-  throw new Error("Invalid environment variables");
+  process.exit(1);
 }
 
-for (let key of Object.keys(_clientEnv.data)) {
-  if (!key.startsWith("NEXT_PUBLIC_")) {
-    console.warn(
-      `❌ Invalid public environment variable name: ${key}. It must begin with 'NEXT_PUBLIC_'`,
-    );
+const requiredEnvKeys = ["NEXT_PUBLIC_API_URL"] as (keyof ClientEnvType)[];
 
-    throw new Error("Invalid public environment variable name");
+for (let key of requiredEnvKeys) {
+  if (!(_clientEnv.data as ClientEnvType)[key]) {
+    console.error(`❌ Required environment variable missing: ${key}`);
+    process.exit(1);
   }
 }
 
-export const env = _clientEnv.data;
+for (let key of Object.keys(_clientEnv.data)) {
+  if (key.startsWith("NEXT_PUBLIC_")) {
+    continue;
+  }
+  console.warn(
+    `❌ Invalid public environment variable name: ${key}. It must begin with 'NEXT_PUBLIC_'`,
+  );
+}
+
+export const env = _clientEnv.data as ClientEnvType;
+
