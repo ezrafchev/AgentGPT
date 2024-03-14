@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { type NextPage } from "next";
 import Badge from "../components/Badge";
 import DefaultLayout from "../layout/default";
@@ -21,51 +21,24 @@ import { useAuth } from "../hooks/useAuth";
 
 const Home: NextPage = () => {
   const { session, status } = useAuth();
-  const [name, setName] = React.useState<string>("");
-  const [goalInput, setGoalInput] = React.useState<string>("");
-  const [agent, setAgent] = React.useState<AutonomousAgent | null>(null);
-  const [customApiKey, setCustomApiKey] = React.useState<string>("");
-  const [customModelName, setCustomModelName] =
-    React.useState<string>(GPT_35_TURBO);
-  const [customTemperature, setCustomTemperature] = React.useState<number>(0.9);
-  const [customMaxLoops, setCustomMaxLoops] = React.useState<number>(
+  const [name, setName] = useState<string>("");
+  const [goalInput, setGoalInput] = useState<string>("");
+  const [agent, setAgent] = useState<AutonomousAgent | null>(null);
+  const [customApiKey, setCustomApiKey] = useState<string>("");
+  const [customModelName, setCustomModelName] = useState<string>(GPT_35_TURBO);
+  const [customTemperature, setCustomTemperature] = useState<number>(0.9);
+  const [customMaxLoops, setCustomMaxLoops] = useState<number>(
     DEFAULT_MAX_LOOPS_FREE
   );
-  const [shouldAgentStop, setShouldAgentStop] = React.useState(false);
-
-  const [messages, setMessages] = React.useState<Message[]>([]);
-
-  const [showHelpDialog, setShowHelpDialog] = React.useState(false);
-  const [showSettingsDialog, setShowSettingsDialog] = React.useState(false);
-
-  // TODO: enable for crud
-  // const utils = api.useContext();
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  // const voidFunc = () => {};
-  // const createAgent = api.agent.create.useMutation({
-  //   onSuccess: (data) => {
-  //     utils.agent.getAll.setData(voidFunc(), (oldData) => [
-  //       ...(oldData ?? []),
-  //       data,
-  //     ]);
-  //   },
-  // });
-
-  useEffect(() => {
-    const key = "agentgpt-modal-opened-new";
-    const savedModalData = localStorage.getItem(key);
-
-    // Momentarily always run
-    setTimeout(() => {
-      if (savedModalData == null) {
-        setShowHelpDialog(true);
-      }
-    }, 3000);
-
-    localStorage.setItem(key, JSON.stringify(true));
-  }, []);
+  const [shouldAgentStop, setShouldAgentStop] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [showHelpDialog, setShowHelpDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [isAgentRunning, setIsAgentRunning] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     nameInputRef?.current?.focus();
   }, []);
@@ -73,6 +46,7 @@ const Home: NextPage = () => {
   useEffect(() => {
     if (agent == null) {
       setShouldAgentStop(false);
+      setIsAgentRunning(false);
     }
   }, [agent]);
 
@@ -82,28 +56,34 @@ const Home: NextPage = () => {
 
   const tasks = messages.filter((message) => message.type === "task");
 
-  const handleNewGoal = () => {
-    // TODO: enable for crud
-    // if (env.NEXT_PUBLIC_VERCEL_ENV != "production" && session?.user) {
-    //   createAgent.mutate({
-    //     name,
-    //     goal: goalInput,
-    //   });
-    // }
-    const agent = new AutonomousAgent(
-      name,
-      goalInput,
-      handleAddMessage,
-      () => setAgent(null),
-      { customApiKey, customModelName, customTemperature, customMaxLoops }
-    );
-    setAgent(agent);
-    agent.run().then(console.log).catch(console.error);
+  const handleNewGoal = async () => {
+    if (name === "" || goalInput === "") return;
+
+    setIsAgentRunning(true);
+
+    try {
+      const newAgent = new AutonomousAgent(
+        name,
+        goalInput,
+        handleAddMessage,
+        () => setAgent(null),
+        { customApiKey, customModelName, customTemperature, customMaxLoops }
+      );
+
+      setAgent(newAgent);
+      await newAgent.run();
+    } catch (error) {
+      console.error("Error running the agent:", error);
+      setIsAgentRunning(false);
+    }
   };
 
   const handleStopAgent = () => {
-    setShouldAgentStop(true);
-    agent?.stopAgent();
+    setIsStopping(true);
+    if (agent) agent.stopAgent();
+    setAgent(null);
+    setIsStopping(false);
+    setShouldAgentStop(false);
   };
 
   const proTitle = (
@@ -139,11 +119,11 @@ const Home: NextPage = () => {
         />
         <div
           id="content"
-          className="z-10 flex min-h-screen w-full items-center justify-center p-2 px-2 sm:px-4 md:px-10"
+          className="z-10 flex min-h-screen w-full max-w-screen-lg flex-col items-center justify-between gap-3 p-2 sm:px-4 md:px-10"
         >
           <div
             id="layout"
-            className="flex h-full w-full max-w-screen-lg flex-col items-center justify-between gap-3 py-5 md:justify-center"
+            className="flex h-full w-full flex-col items-center justify-between gap-3 py-5 md:justify-center"
           >
             <div
               id="title"
@@ -156,99 +136,4 @@ const Home: NextPage = () => {
                 <span className="text-4xl font-bold text-white xs:text-5xl sm:text-6xl">
                   GPT
                 </span>
-                <PopIn delay={0.5} className="sm:absolute sm:right-0 sm:top-2">
-                  <Badge>Beta 🚀</Badge>
-                </PopIn>
-              </div>
-              <div className="mt-1 text-center font-mono text-[0.7em] font-bold text-white">
-                <p>
-                  Assemble, configure, and deploy autonomous AI Agents in your
-                  browser.
-                </p>
-              </div>
-            </div>
-
-            <Expand className="flex w-full flex-row">
-              <ChatWindow
-                className="mt-4"
-                messages={messages}
-                title={session?.user.subscriptionId ? proTitle : "AgentGPT"}
-                showDonation={
-                  status != "loading" && !session?.user.subscriptionId
-                }
-              />
-              {tasks.length > 0 && <TaskWindow tasks={tasks} />}
-            </Expand>
-
-            <div className="mt-5 flex w-full flex-col gap-2 sm:mt-10">
-              <Expand delay={1.2}>
-                <Input
-                  inputRef={nameInputRef}
-                  left={
-                    <>
-                      <FaRobot />
-                      <span className="ml-2">Name:</span>
-                    </>
-                  }
-                  value={name}
-                  disabled={agent != null}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="AgentGPT"
-                />
-              </Expand>
-              <Expand delay={1.3}>
-                <Input
-                  left={
-                    <>
-                      <FaStar />
-                      <span className="ml-2">Goal:</span>
-                    </>
-                  }
-                  disabled={agent != null}
-                  value={goalInput}
-                  onChange={(e) => setGoalInput(e.target.value)}
-                  placeholder="Make the world a better place."
-                />
-              </Expand>
-            </div>
-
-            <Expand delay={1.4} className="flex gap-2">
-              <Button
-                disabled={agent != null || name === "" || goalInput === ""}
-                onClick={handleNewGoal}
-                className="sm:mt-10"
-              >
-                {agent == null ? (
-                  "Deploy Agent"
-                ) : (
-                  <>
-                    <VscLoading className="animate-spin" size={20} />
-                    <span className="ml-2">Running</span>
-                  </>
-                )}
-              </Button>
-
-              <Button
-                disabled={agent == null}
-                onClick={handleStopAgent}
-                className="sm:mt-10"
-                enabledClassName={"bg-red-600 hover:bg-red-400"}
-              >
-                {shouldAgentStop ? (
-                  <>
-                    <VscLoading className="animate-spin" size={20} />
-                    <span className="ml-2">Stopping</span>
-                  </>
-                ) : (
-                  "Stop agent"
-                )}
-              </Button>
-            </Expand>
-          </div>
-        </div>
-      </main>
-    </DefaultLayout>
-  );
-};
-
-export default Home;
+                <PopIn delay={0.5} className="sm:absolute sm
