@@ -4,6 +4,11 @@ import { LLMChain } from "langchain/chains";
 import type { ModelSettings } from "./types";
 import { GPT_35_TURBO } from "./constants";
 
+type Task = {
+  task: string;
+  completed: boolean;
+};
+
 export const createModel = (settings: ModelSettings) =>
   new OpenAI({
     openAIApiKey:
@@ -18,9 +23,10 @@ export const createModel = (settings: ModelSettings) =>
 
 const startGoalPrompt = new PromptTemplate({
   template:
-    "You are an autonomous task creation AI called AgentGPT. You have the following objective `{goal}`. Create a list of zero to three tasks to be completed by your AI system such that your goal is more closely reached or completely reached. Return the response as an array of strings that can be used in JSON.parse()",
+    "You are an autonomous task creation AI called AgentGPT. You have the following objective `{goal}`. Create a list of zero to three tasks to be completed by your AI system such that your goal is more closely reached or completely reached. Return the response as a JSON-formatted array of task objects, where each object has a 'task' property (string) and a 'completed' property (boolean, set to false).",
   inputVariables: ["goal"],
 });
+
 export const startGoalAgent = async (model: OpenAI, goal: string) => {
   return await new LLMChain({
     llm: model,
@@ -32,69 +38,68 @@ export const startGoalAgent = async (model: OpenAI, goal: string) => {
 
 const executeTaskPrompt = new PromptTemplate({
   template:
-    "You are an autonomous task execution AI called AgentGPT. You have the following objective `{goal}`. You have the following tasks `{task}`. Execute the task and return the response as a string.",
+    "You are an autonomous task execution AI called AgentGPT. You have the following objective `{goal}`. You have the following task `{task}` with 'completed' property set to `{completed}`. Execute the task and return the response as a string.",
   inputVariables: ["goal", "task"],
 });
+
 export const executeTaskAgent = async (
   model: OpenAI,
   goal: string,
-  task: string
+  task: Task
 ) => {
   return await new LLMChain({ llm: model, prompt: executeTaskPrompt }).call({
     goal,
-    task,
+    task: JSON.stringify(task),
   });
 };
 
 const createTaskPrompt = new PromptTemplate({
   template:
-    "You are an AI task creation agent. You have the following objective `{goal}`. You have the following incomplete tasks `{tasks}` and have just executed the following task `{lastTask}` and received the following result `{result}`. Based on this, create a new task to be completed by your AI system ONLY IF NEEDED such that your goal is more closely reached or completely reached. Return the response as an array of strings that can be used in JSON.parse() and NOTHING ELSE",
+    "You are an AI task creation agent. You have the following objective `{goal}` and the following incomplete tasks `{tasks}` (array of task objects). You have just executed the following task `{lastTask}` and received the following result `{result}` (string). Based on this, create a new task to be completed by your AI system ONLY IF NEEDED such that your goal is more closely reached or completely reached. Return the response as a JSON-formatted array of task objects, where each object has a 'task' property (string) and a 'completed' property (boolean, set to false). Return an empty array if no new task is needed.",
   inputVariables: ["goal", "tasks", "lastTask", "result"],
 });
+
 export const executeCreateTaskAgent = async (
   model: OpenAI,
   goal: string,
-  tasks: string[],
-  lastTask: string,
+  tasks: Task[],
+  lastTask: Task,
   result: string
 ) => {
   return await new LLMChain({ llm: model, prompt: createTaskPrompt }).call({
     goal,
-    tasks,
-    lastTask,
+    tasks: JSON.stringify(tasks),
+    lastTask: JSON.stringify(lastTask),
     result,
   });
 };
 
-export const extractArray = (inputStr: string): string[] => {
-  // Match an outer array of strings (including nested arrays)
-  const regex = /(\[(?:\s*"(?:[^"\\]|\\.)*"\s*,?)+\s*\])/;
-  const match = inputStr.match(regex);
+export const extractTasks = (input: string): Task[] => {
+  const regex = /(\[.*\])/;
+  const match = input.match(regex);
 
   if (match && match[0]) {
     try {
-      // Parse the matched string to get the array
-      return JSON.parse(match[0]) as string[];
+      return JSON.parse(match[0]) as Task[];
     } catch (error) {
-      console.error("Error parsing the matched array:", error);
+      console.error("Error parsing the matched tasks:", error);
     }
   }
 
-  console.warn("Error, could not extract array from inputString:", inputStr);
+  console.warn("Error, could not extract tasks from inputString:", input);
   return [];
 };
 
-// Model will return tasks such as "No tasks added". We should filter these
-export const realTasksFilter = (input: string): boolean => {
-  const noTaskRegex =
-    /^No( (new|further|additional|extra|other))? tasks? (is )?(required|needed|added|created|inputted).*$/i;
-  const taskCompleteRegex =
-    /^Task (complete|completed|finished|done|over|success).*/i;
-  const doNothingRegex = /^(\s*|Do nothing(\s.*)?)$/i;
-
-  return (
-    !noTaskRegex.test(input) &&
-    !taskCompleteRegex.test(input) &&
-    !doNothingRegex.test(input)
+// Filter tasks that don't require any action
+export const realTasksFilter = (tasks: Task[]): Task[] => {
+  return tasks.filter(
+    (task) =>
+      !/^No( (new|further|additional|extra|other))? tasks? (is )?(required|needed|added|created|inputted).*$/i.test(
+        task.task
+      ) &&
+      !/^Task (complete|completed|finished|done|over|success).*/i.test(
+        task.task
+      ) &&
+      !/^(\s*|Do nothing(\s.*)?)$/i.test(task.task)
   );
 };
