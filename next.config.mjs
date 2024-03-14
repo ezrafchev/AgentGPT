@@ -1,22 +1,26 @@
 // @ts-check
+
 /**
- * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation.
- * This is especially useful for Docker builds.
+ * Check if the `SKIP_ENV_VALIDATION` environment variable is set to true
+ * before importing the server env file. This is useful for skipping env
+ * validation during Docker builds.
  */
-!process.env.SKIP_ENV_VALIDATION && (await import("./src/env/server.mjs"));
+const skipEnvValidation = process.env.SKIP_ENV_VALIDATION === "true";
+if (!skipEnvValidation) {
+  require("./src/env/server");
+}
 
 /** @type {import("next").NextConfig} */
 const config = {
   reactStrictMode: true,
-  /* If trying out the experimental appDir, comment the i18n config out
-   * @see https://github.com/vercel/next.js/issues/41980 */
   i18n: {
     locales: ["en"],
     defaultLocale: "en",
   },
-  webpack: function (config, options) {
+  webpack: (config, options) => {
     config.experiments = { asyncWebAssembly: true, layers: true };
     return config;
-  }
+  },
 };
-export default config;
+
+module.exports = config;
