@@ -1,30 +1,18 @@
 import type Stripe from "stripe";
 
-export const getCustomerId = (
-  customer: string | Stripe.Customer | Stripe.DeletedCustomer | null
-) => {
+type CustomerType = string | Stripe.Customer | Stripe.DeletedCustomer;
+
+const getCustomerId = (customer: CustomerType) => {
   if (!customer) throw new Error("No customer found");
 
-  switch (typeof customer) {
-    case "string":
-      return customer;
-    case "object":
-      return customer.id;
-    default:
-      throw new Error("Unexpected customer type");
-  }
+  return typeof customer === "string" ? customer : customer.id;
 };
 
-export const getCustomerEmail = async (
-  stripe: Stripe,
-  customer: string | Stripe.Customer | Stripe.DeletedCustomer | null
-) => {
+const getCustomerEmail = async (stripe: Stripe, customer: CustomerType) => {
   if (!customer) throw new Error("No customer found");
 
-  let c = customer;
-  if (typeof customer === "string") {
-    c = await stripe.customers.retrieve(customer);
-  }
+  const c = typeof customer === "string" ? await stripe.customers.retrieve(customer) : customer;
 
   return (c as Stripe.Customer).email ?? "";
 };
+
