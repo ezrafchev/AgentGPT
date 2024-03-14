@@ -7,11 +7,11 @@ import { env } from "../../../env/server.mjs";
 import { prisma } from "../../../server/db";
 import { getCustomerEmail } from "../../../utils/stripe-utils";
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY ?? "", {
+const stripe = new Stripe(env.STRIPE_SECRET_KEY!, {
   apiVersion: "2022-11-15",
 });
 
-const webhookSecret = env.STRIPE_WEBHOOK_SECRET ?? "";
+const webhookSecret = env.STRIPE_WEBHOOK_SECRET!;
 
 // Stripe requires the raw body to construct the event.
 export const config = {
@@ -44,7 +44,7 @@ const webhookHandler = async (req: NextApiRequest, res: NextApiResponse) => {
     event = stripe.webhooks.constructEvent(buf.toString(), sig, webhookSecret);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    if (err instanceof Error) console.log(err);
+    console.error(err);
     console.log(`❌ Error message: ${errorMessage}`);
     res.status(400).send(`Webhook Error: ${errorMessage}`);
     return;
@@ -56,7 +56,17 @@ const webhookHandler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   const subscription = event.data.object as Stripe.Subscription;
-  const email = await getCustomerEmail(stripe, subscription.customer);
+  let email: string;
+
+  try {
+    email = await getCustomerEmail(stripe, subscription.customer);
+  } catch (err) {
+    console.error(err);
+    console.log("❌ Error getting customer email.");
+    res.status(500).send("Error getting customer email.");
+    return;
+  }
+
   const user = await prisma.user.findUniqueOrThrow({
     where: {
       email: email,
@@ -97,5 +107,4 @@ const updateUserSubscription = async (
   });
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-export default cors(webhookHandler as any);
+export default cors(webhookHandler);
