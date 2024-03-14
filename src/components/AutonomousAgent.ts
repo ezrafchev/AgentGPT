@@ -3,22 +3,25 @@ import type { AxiosError } from "axios";
 import axios from "axios";
 import type { ModelSettings } from "../utils/types";
 import {
+  DEFAULT_MAX_LOOPS,
+  DEFAULT_MAX_LOOPS_FREE,
+} from "../utils/constants";
+import {
   createAgent,
   executeAgent,
   startAgent,
 } from "../services/agent-service";
-import { DEFAULT_MAX_LOOPS, DEFAULT_MAX_LOOPS_FREE } from "../utils/constants";
 
 class AutonomousAgent {
-  name: string;
-  goal: string;
-  tasks: string[] = [];
-  completedTasks: string[] = [];
-  modelSettings: ModelSettings;
-  isRunning = true;
-  renderMessage: (message: Message) => void;
-  shutdown: () => void;
-  numLoops = 0;
+  private name: string;
+  private goal: string;
+  private tasks: string[];
+  private completedTasks: string[];
+  private modelSettings: ModelSettings;
+  private isRunning: boolean;
+  private renderMessage: (message: Message) => void;
+  private shutdown: () => void;
+  private numLoops: number;
 
   constructor(
     name: string,
@@ -32,13 +35,21 @@ class AutonomousAgent {
     this.renderMessage = renderMessage;
     this.shutdown = shutdown;
     this.modelSettings = modelSettings;
+    this.tasks = [];
+    this.completedTasks = [];
+    this.isRunning = true;
+    this.numLoops = 0;
   }
 
   async run() {
+    await this.initialize();
+    await this.loop();
+  }
+
+  private async initialize() {
     this.sendGoalMessage();
     this.sendThinkingMessage();
 
-    // Initialize by getting tasks
     try {
       this.tasks = await this.getInitialTasks();
       for (const task of this.tasks) {
@@ -49,16 +60,10 @@ class AutonomousAgent {
       console.log(e);
       this.sendErrorMessage(getMessageFromError(e));
       this.shutdown();
-      return;
     }
-
-    await this.loop();
   }
 
-  async loop() {
-    console.log(`Loop ${this.numLoops}`);
-    console.log(this.tasks);
-
+  private async loop() {
     if (!this.isRunning) {
       return;
     }
@@ -80,49 +85,27 @@ class AutonomousAgent {
       return;
     }
 
-    // Wait before starting
-    await new Promise((r) => setTimeout(r, 1000));
+    const currentTask = this.tasks.shift()!;
+    await this.executeTask(currentTask);
 
-    // Execute first task
-    // Get and remove first task
-    this.completedTasks.push(this.tasks[0] || "");
-    const currentTask = this.tasks.shift();
-    this.sendThinkingMessage();
-
-    const result = await this.executeTask(currentTask as string);
-    this.sendExecutionMessage(currentTask as string, result);
-
-    // Wait before adding tasks
-    await new Promise((r) => setTimeout(r, 1000));
-    this.sendThinkingMessage();
-
-    // Add new tasks
     try {
-      const newTasks = await this.getAdditionalTasks(
-        currentTask as string,
-        result
-      );
+      const newTasks = await this.getAdditionalTasks(currentTask);
       this.tasks = this.tasks.concat(newTasks);
       for (const task of newTasks) {
         await new Promise((r) => setTimeout(r, 800));
         this.sendTaskMessage(task);
-      }
-
-      if (newTasks.length == 0) {
-        this.sendActionMessage("Task marked as complete!");
       }
     } catch (e) {
       console.log(e);
       this.sendErrorMessage(
         `ERROR adding additional task(s). It might have been against our model's policies to run them. Continuing.`
       );
-      this.sendActionMessage("Task marked as complete.");
     }
 
     await this.loop();
   }
 
-  async getInitialTasks(): Promise<string[]> {
+  private async getInitialTasks(): Promise<string[]> {
     if (this.shouldRunClientSide()) {
       await testConnection(this.modelSettings);
       return await startAgent(this.modelSettings, this.goal);
@@ -133,13 +116,11 @@ class AutonomousAgent {
       goal: this.goal,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument
-    return res.data.newTasks as string[];
+    return res.data.newTasks;
   }
 
-  async getAdditionalTasks(
-    currentTask: string,
-    result: string
+  private async getAdditionalTasks(
+    currentTask: string
   ): Promise<string[]> {
     if (this.shouldRunClientSide()) {
       return await createAgent(
@@ -147,7 +128,7 @@ class AutonomousAgent {
         this.goal,
         this.tasks,
         currentTask,
-        result,
+        "",
         this.completedTasks
       );
     }
@@ -157,25 +138,22 @@ class AutonomousAgent {
       goal: this.goal,
       tasks: this.tasks,
       lastTask: currentTask,
-      result: result,
+      result: "",
       completedTasks: this.completedTasks,
     });
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument,@typescript-eslint/no-unsafe-member-access
-    return res.data.newTasks as string[];
+    return res.data.newTasks;
   }
 
-  async executeTask(task: string): Promise<string> {
+  private async executeTask(task: string): Promise<void> {
     if (this.shouldRunClientSide()) {
-      return await executeAgent(this.modelSettings, this.goal, task);
+      await executeAgent(this.modelSettings, this.goal, task);
+    } else {
+      await axios.post(`/api/execute`, {
+        modelSettings: this.modelSettings,
+        goal: this.goal,
+        task: task,
+      });
     }
-
-    const res = await axios.post(`/api/execute`, {
-      modelSettings: this.modelSettings,
-      goal: this.goal,
-      task: task,
-    });
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument
-    return res.data.response as string;
   }
 
   private shouldRunClientSide() {
@@ -210,83 +188,3 @@ class AutonomousAgent {
   }
 
   sendManualShutdownMessage() {
-    this.sendMessage({
-      type: "system",
-      value: `The agent has been manually shutdown.`,
-    });
-  }
-
-  sendCompletedMessage() {
-    this.sendMessage({
-      type: "system",
-      value: "All tasks completed. Shutting down.",
-    });
-  }
-
-  sendThinkingMessage() {
-    this.sendMessage({ type: "thinking", value: "" });
-  }
-
-  sendTaskMessage(task: string) {
-    this.sendMessage({ type: "task", value: task });
-  }
-
-  sendErrorMessage(error: string) {
-    this.sendMessage({ type: "system", value: error });
-  }
-
-  sendExecutionMessage(task: string, execution: string) {
-    this.sendMessage({
-      type: "action",
-      info: `Executing "${task}"`,
-      value: execution,
-    });
-  }
-
-  sendActionMessage(message: string) {
-    this.sendMessage({
-      type: "action",
-      info: message,
-      value: "",
-    });
-  }
-}
-
-const testConnection = async (modelSettings: ModelSettings) => {
-  // A dummy connection to see if the key is valid
-  // Can't use LangChain / OpenAI libraries to test because they have retries in place
-  return await axios.post(
-    "https://api.openai.com/v1/chat/completions",
-    {
-      model: modelSettings.customModelName,
-      messages: [{ role: "user", content: "Say this is a test" }],
-      max_tokens: 7,
-      temperature: 0,
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${modelSettings.customApiKey}`,
-      },
-    }
-  );
-};
-
-const getMessageFromError = (e: unknown) => {
-  let message =
-    "ERROR accessing OpenAI APIs. Please check your API key or try again later";
-  if (axios.isAxiosError(e)) {
-    const axiosError = e as AxiosError;
-    if (axiosError.response?.status === 429) {
-      message = `ERROR using your OpenAI API key. You've exceeded your current quota, please check your plan and billing details.`;
-    }
-    if (axiosError.response?.status === 404) {
-      message = `ERROR your API key does not have GPT-4 access. You must first join OpenAI's wait-list. (This is different from ChatGPT Plus)`;
-    }
-  } else {
-    message = `ERROR retrieving initial tasks array. Retry, make your goal more clear, or revise your goal such that it is within our model's policies to run. Shutting Down.`;
-  }
-  return message;
-};
-
-export default AutonomousAgent;
