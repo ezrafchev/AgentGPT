@@ -9,75 +9,67 @@ datasource db {
   relationMode = "prisma"
 }
 
-enum Role {
-  ADMIN
-}
-
 // Necessary for Next auth
 model Account {
-  id                String  @id @default(cuid())
+  // The unique identifier for the account
+  id                String   @id @default(cuid())
+  // The user associated with the account
   userId            String
+  // The type of account (e.g. "google", "facebook")
   type              String
+  // The provider of the account (e.g. "google", "facebook")
   provider          String
+  // The unique identifier for the account on the provider's side
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  // The refresh token for the account, if applicable
+  refresh_token     String?  @db.Text
+  // The access token for the account, if applicable
+  access_token      String?  @db.Text
+  // The expiration time for the access token, if applicable
   expires_at        Int?
+  // The type of token, if applicable
   token_type        String?
+  // The scope of the token, if applicable
   scope             String?
-  id_token          String? @db.Text
+  // The ID token for the account, if applicable
+  id_token          String?  @db.Text
+  // The session state for the account, if applicable
   session_state     String?
+  // The user associated with the account
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // The unique combination of provider and providerAccountId
   @@unique([provider, providerAccountId])
 }
 
+// A session for a user
 model Session {
+  // The unique identifier for the session
   id           String   @id @default(cuid())
+  // The session token, used for authentication
   sessionToken String   @unique
+  // The user associated with the session
   userId       String
+  // The expiration time for the session
   expires      DateTime
+  // The user associated with the session
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// A user of the system
 model User {
+  // The unique identifier for the user
   id             String    @id @default(cuid())
+  // The name of the user
   name           String?
+  // The email address of the user
   email          String?   @unique
+  // The time the user's email was verified, if applicable
   emailVerified  DateTime?
+  // The URL of the user's profile picture
   image          String?
+  // The role of the user (e.g. "admin")
   role           Role?
+  // The subscription ID for the user, if applicable
   subscriptionId String?   @db.Text
-  customerId     String?   @db.Text
-
-  accounts Account[]
-  sessions Session[]
-  Agent    Agent[]
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-model Agent {
-  id     String @id @default(cuid())
-  userId String
-  name   String
-  goal   String
-
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  AgentTask AgentTask[]
-}
-
-model AgentTask {
-  id      String @id @default(cuid())
-  agentId String
-  task    String
-  result  String
-
-  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
-}
+  // The customer ID for the user
