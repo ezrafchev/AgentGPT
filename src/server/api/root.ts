@@ -1,4 +1,4 @@
-import { createTRPCRouter } from "./trpc";
+import { createTRPCRouter, publicProcedure } from "./trpc";
 import { exampleRouter } from "./routers/example";
 import { chainRouter } from "./routers/chain";
 import { agentRouter } from "./routers/agentRouter";
@@ -14,6 +14,11 @@ export const appRouter = createTRPCRouter({
   chain: chainRouter,
   agent: agentRouter,
   account: accountRouter,
+  version: publicProcedure
+    .query(() => {
+      return { version: "1.0.0" };
+    })
+    .summary("Get the current API version"),
 });
 
 // export type definition of API
