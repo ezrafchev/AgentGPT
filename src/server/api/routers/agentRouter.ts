@@ -1,11 +1,18 @@
 import { z } from "zod";
-
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { prisma } from "../../db";
+import { PrismaClient } from "@prisma/client";
+import { inferProcedureOutput } from "@trpc/server";
+
+const prisma = new PrismaClient();
 
 export const agentRouter = createTRPCRouter({
   create: protectedProcedure
-    .input(z.object({ name: z.string(), goal: z.string() }))
+    .input(
+      z.object({
+        name: z.string(),
+        goal: z.string(),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       const agent = await prisma.agent.create({
         data: {
@@ -17,7 +24,7 @@ export const agentRouter = createTRPCRouter({
 
       return agent;
     }),
-  getAll: protectedProcedure.query(async ({ ctx }) => {
+  getAll: protectedProcedure.query(async ({ ctx }): inferProcedureOutput<typeof getAll> => {
     return prisma.agent.findMany({
       where: { userId: ctx.session?.user?.id },
     });
