@@ -8,11 +8,19 @@ import {
 } from "../utils/chain";
 import type { ModelSettings } from "../utils/types";
 
-export async function startAgent(modelSettings: ModelSettings, goal: string) {
-  const completion = await startGoalAgent(createModel(modelSettings), goal);
-  console.log(typeof completion.text);
-  console.log("Completion:" + (completion.text as string));
-  return extractArray(completion.text as string).filter(realTasksFilter);
+export async function startAgent(modelSettings: ModelSettings, goal: string): Promise<string[]> {
+  try {
+    const completion = await startGoalAgent(createModel(modelSettings), goal);
+    if (completion.type !== 'success') {
+      throw new Error('Start goal agent failed');
+    }
+    console.log(typeof completion.text);
+    console.log("Completion:", completion.text);
+    return extractArray(completion.text).filter(realTasksFilter);
+  } catch (error) {
+    console.error('Error in startAgent:', error);
+    return [];
+  }
 }
 
 export async function createAgent(
@@ -21,30 +29,33 @@ export async function createAgent(
   tasks: string[],
   lastTask: string,
   result: string,
-  completedTasks: string[] | undefined
-) {
-  const completion = await executeCreateTaskAgent(
-    createModel(modelSettings),
-    goal,
-    tasks,
-    lastTask,
-    result
-  );
+  completedTasks?: string[]
+): Promise<string[]> {
+  try {
+    const completion = await executeCreateTaskAgent(
+      createModel(modelSettings),
+      goal,
+      tasks,
+      lastTask,
+      result
+    );
 
-  return extractArray(completion.text as string)
-    .filter(realTasksFilter)
-    .filter((task) => !(completedTasks || []).includes(task));
+    if (completion.type !== 'success') {
+      throw new Error('Create task agent failed');
+    }
+
+    const taskArray = extractArray(completion.text);
+    const filteredTasks = taskArray.filter(realTasksFilter);
+    if (completedTasks) {
+      return filteredTasks.filter((task) => !completedTasks.includes(task));
+    } else {
+      return filteredTasks;
+    }
+  } catch (error) {
+    console.error('Error in createAgent:', error);
+    return [];
+  }
 }
 
 export async function executeAgent(
-  modelSettings: ModelSettings,
-  goal: string,
-  task: string
-) {
-  const completion = await executeTaskAgent(
-    createModel(modelSettings),
-    goal,
-    task
-  );
-  return completion.text as string;
-}
+
